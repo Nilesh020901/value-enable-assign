@@ -1,0 +1,19 @@
+# Backend Dependencies
+node_modules/
+
+# TypeScript Build Output
+dist/
+*.tsbuildinfo
+
+# Sensitive Environment Variables
+.env
+.env.*
+!.env.example
+
+# Test Coverage
+coverage/
+.vitest/
+
+# Logs
+*.log
+logs/

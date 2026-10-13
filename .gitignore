@@ -1,0 +1,66 @@
+# ==========================================
+# Life Insurance Benefit Illustration Module
+# Git Ignore Configuration
+# ==========================================
+
+# 1. Dependency Directories
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+
+# 2. Production & Build Outputs
+dist/
+*/dist/
+build/
+dist-ssr/
+*.tsbuildinfo
+
+# 3. Environment Variables & Credentials (CRITICAL: Never commit secrets)
+.env
+.env.*
+!.env.example
+*.local
+
+# 4. Logs & Debug Traces
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 5. Testing & Code Coverage
+coverage/
+*/coverage/
+.vitest/
+.nyc_output/
+
+# 6. IDEs & Editors
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-project
+*.sublime-workspace
+
+# 7. OS Generated Metadata
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# 8. Temporary & Cache Files
+.cache/
+tmp/
+temp/
+*.tmp
