@@ -11,6 +11,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 export const app = express();
 
+// Trust reverse proxy (Render, AWS ALB, Cloudflare) for express-rate-limit and X-Forwarded-For
+app.set('trust proxy', 1);
+
 // Security headers with helmet
 app.use(helmet());
 

@@ -68,7 +68,42 @@ export async function initDb(): Promise<void> {
       );
     }
 
-    console.log('PostgreSQL database schemas and 20-year bonus rates initialized.');
+    // 4. Seed demo agent user if not exists
+    const demoEmail = 'agent@example.com';
+    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [demoEmail]);
+    if (existingUser.rowCount === 0) {
+      const bcrypt = (await import('bcrypt')).default;
+      const { encryptData, hashMobile } = await import('../services/crypto.js');
+      const passwordHash = await bcrypt.hash('Password@123', 10);
+      const nameEncrypted = encryptData('Rajesh Sharma', env.ENCRYPTION_KEY);
+      const dobEncrypted = encryptData('1990-05-15', env.ENCRYPTION_KEY);
+      const mobileEncrypted = encryptData('9876543210', env.ENCRYPTION_KEY);
+      const mobileHash = hashMobile('9876543210', env.HMAC_SECRET);
+
+      await pool.query(
+        `INSERT INTO users (
+          email, password_hash,
+          full_name_encrypted, full_name_masked,
+          dob_encrypted, dob_masked,
+          mobile_encrypted, mobile_masked,
+          mobile_hash
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          demoEmail,
+          passwordHash,
+          nameEncrypted,
+          'R****h S****a',
+          dobEncrypted,
+          '****-**-15',
+          mobileEncrypted,
+          '******3210',
+          mobileHash,
+        ]
+      );
+      console.log('Seeded demo agent user: agent@example.com / Password@123');
+    }
+
+    console.log('PostgreSQL database schemas, bonus rates, and demo user verified.');
   } catch (err: any) {
     console.error('CRITICAL: Database initialization failed:', err.message || err);
     throw new Error(`Database connection/initialization failed: ${err.message || err}`);
