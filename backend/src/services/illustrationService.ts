@@ -1,16 +1,16 @@
-import { query } from '../db/index.js';
 import {
   calculateAge,
   calculateIllustration,
   DEFAULT_BONUS_RATES,
   IllustrationResult,
   PolicyCategory,
-  PolicyInputs,
   PremiumFrequency,
   CalculatedRiderBenefit,
   SelectedRiderInput,
 } from './calculation.js';
 import { validatePolicyInputs, ValidationErrorItem } from './validation.js';
+import { IllustrationModel } from '../models/Illustration.js';
+import { BonusRateModel } from '../models/BonusRate.js';
 
 export interface IllustrationSaveDTO {
   dob: string;
@@ -47,12 +47,12 @@ export interface IllustrationResponseData {
 
 export async function fetchBonusRates(): Promise<number[]> {
   try {
-    const res = await query('SELECT policy_year, rate FROM bonus_rates ORDER BY policy_year ASC');
-    if (res.rowCount === 20) {
-      return res.rows.map((r) => parseFloat(r.rate));
+    const rates = await BonusRateModel.getAll();
+    if (rates.length === 20) {
+      return rates;
     }
   } catch (err) {
-    console.warn('Error fetching bonus rates from DB, falling back to defaults:', err);
+    console.warn('Could not read bonus rates from database, falling back to default seeds:', err);
   }
   return DEFAULT_BONUS_RATES;
 }
@@ -76,10 +76,10 @@ export async function calculateAndSaveIllustration(
     return { success: false, errors: validation.errors };
   }
 
-  // 2. Compute Age from DOB (Note: DOB itself is NOT stored in illustrations)
+  // 2. Compute Age from DOB
   const age = calculateAge(dto.dob);
 
-  // 3. Fetch rates
+  // 3. Fetch rates from BonusRateModel
   const rates = await fetchBonusRates();
 
   // 4. Calculate 20-year Illustration with Policy Type and Riders
@@ -101,32 +101,22 @@ export async function calculateAndSaveIllustration(
     rows: illustration.rows,
   };
 
-  // 5. Save in database
-  const insertRes = await query(
-    `INSERT INTO illustrations (
-      user_id, gender, age, sum_assured, modal_premium,
-      premium_frequency, pt, ppt, annual_premium,
-      total_premium, total_benefit, irr, rows_data
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-    RETURNING id, created_at`,
-    [
-      userId,
-      dto.gender,
-      age,
-      dto.sumAssured,
-      dto.modalPremium,
-      dto.premiumFrequency,
-      dto.pt,
-      dto.ppt,
-      illustration.annualPremium,
-      illustration.totalPremium,
-      illustration.totalBenefit,
-      illustration.irr,
-      JSON.stringify(payloadToStore),
-    ]
-  );
-
-  const savedRecord = insertRes.rows[0];
+  // 5. Save in database via IllustrationModel
+  const savedRecord = await IllustrationModel.create({
+    userId,
+    gender: dto.gender,
+    age,
+    sumAssured: dto.sumAssured,
+    modalPremium: dto.modalPremium,
+    premiumFrequency: dto.premiumFrequency,
+    pt: dto.pt,
+    ppt: dto.ppt,
+    annualPremium: illustration.annualPremium,
+    totalPremium: illustration.totalPremium,
+    totalBenefit: illustration.totalBenefit,
+    irr: illustration.irr,
+    rowsData: payloadToStore,
+  });
 
   return {
     success: true,
@@ -148,7 +138,7 @@ export async function calculateAndSaveIllustration(
       riders: illustration.riders,
       totalAnnualRiderPremium: illustration.totalAnnualRiderPremium,
       rows: illustration.rows,
-      createdAt: savedRecord.created_at,
+      createdAt: savedRecord.created_at instanceof Date ? savedRecord.created_at.toISOString() : String(savedRecord.created_at),
     },
   };
 }
@@ -156,20 +146,10 @@ export async function calculateAndSaveIllustration(
 export async function getLatestIllustrationForUser(
   userId: string
 ): Promise<IllustrationResponseData | null> {
-  const res = await query(
-    `SELECT id, user_id, gender, age, sum_assured, modal_premium,
-            premium_frequency, pt, ppt, annual_premium, total_premium,
-            total_benefit, irr, rows_data, created_at
-     FROM illustrations
-     WHERE user_id = $1
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [userId]
-  );
+  const row = await IllustrationModel.findLatestByUserId(userId);
 
-  if (res.rowCount === 0) return null;
+  if (!row) return null;
 
-  const row = res.rows[0];
   let parsedRows = [];
   let riders: CalculatedRiderBenefit[] = [];
   let policyType: PolicyCategory = 'Endowment';
@@ -189,20 +169,20 @@ export async function getLatestIllustrationForUser(
     id: row.id,
     userId: row.user_id,
     gender: row.gender,
-    age: parseInt(row.age, 10),
+    age: parseInt(String(row.age), 10),
     policyType,
-    sumAssured: parseFloat(row.sum_assured),
-    modalPremium: parseFloat(row.modal_premium),
+    sumAssured: parseFloat(String(row.sum_assured)),
+    modalPremium: parseFloat(String(row.modal_premium)),
     premiumFrequency: row.premium_frequency as PremiumFrequency,
-    pt: parseInt(row.pt, 10),
-    ppt: parseInt(row.ppt, 10),
-    annualPremium: parseFloat(row.annual_premium),
-    totalPremium: parseFloat(row.total_premium),
-    totalBenefit: parseFloat(row.total_benefit),
-    irr: parseFloat(row.irr),
+    pt: parseInt(String(row.pt), 10),
+    ppt: parseInt(String(row.ppt), 10),
+    annualPremium: parseFloat(String(row.annual_premium)),
+    totalPremium: parseFloat(String(row.total_premium)),
+    totalBenefit: parseFloat(String(row.total_benefit)),
+    irr: parseFloat(String(row.irr)),
     riders,
     totalAnnualRiderPremium,
     rows: parsedRows,
-    createdAt: row.created_at,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   };
 }

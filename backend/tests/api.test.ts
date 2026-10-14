@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { app } from '../src/server.js';
-import { initDb } from '../src/db/index.js';
+import { initDb, pool } from '../src/db/index.js';
 import http from 'http';
 
 let server: http.Server;
@@ -16,11 +16,14 @@ beforeAll(async () => {
       resolve();
     });
   });
-
-  return () => {
-    server.close();
-  };
 }, 30000);
+
+afterAll(async () => {
+  if (server) {
+    server.close();
+  }
+  await pool.end();
+});
 
 describe('Full Backend API Integration Tests', () => {
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);

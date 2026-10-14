@@ -1,14 +1,10 @@
-# Insurance Benefit Illustration Application
-
-A full-stack Life Insurance Benefit Illustration application built to replicate standard actuarial illustration models (referencing Excel actuarial sheets). It features AES-256-GCM encryption for sensitive personal data, pure actuarial calculation & validation engines, seamless Neon PostgreSQL persistence, Vitest test suites, and a responsive React interface.
-
----
 
 ## Architecture & Technology Stack
 
 - **Frontend**: React 19 + TypeScript (Vite), Tailwind CSS, Lucide Icons, React Router DOM
-- **Backend**: Node.js + Express + TypeScript (Strict mode, zero `any`)
-- **Database**: PostgreSQL (Neon Serverless PostgreSQL via `pg` connection pool with in-memory zero-config fallback)
+- **Backend**: Node.js + Express + TypeScript
+- **Database**: PostgreSQL (Direct `pg` connection pool connected to `DATABASE_URL`; fails fast and reports errors if database is down)
+- **Data Models & Schema**: Standard MVC model layer with `models/schema.sql`, `models/User.ts`, `models/Illustration.ts`, `models/BonusRate.ts`
 - **Security & PII**: AES-256-GCM authenticated encryption for Name, DOB, Mobile; HMAC-SHA256 for deterministic mobile indexing; bcrypt password hashing; Helmet headers, CORS restrictions, Rate Limiting, and parameterized SQL queries
 - **Testing**: Vitest test runner
 
@@ -68,8 +64,13 @@ value-enable-assignment/
 │   ├── src/
 │   │   ├── config/env.ts             # Zod environment variable validation
 │   │   ├── db/
-│   │   │   ├── index.ts              # pg Pool & zero-config fallback
-│   │   │   └── schema.sql            # PostgreSQL DDL & seed data
+│   │   │   └── index.ts              # PostgreSQL pg.Pool connection & init
+│   │   ├── models/
+│   │   │   ├── schema.sql            # PostgreSQL DDL table definitions & indexes
+│   │   │   ├── User.ts               # User model interface & queries
+│   │   │   ├── Illustration.ts       # Illustration model interface & queries
+│   │   │   ├── BonusRate.ts          # Bonus rates model interface & queries
+│   │   │   └── index.ts              # Barrel export
 │   │   ├── middleware/
 │   │   │   ├── authMiddleware.ts     # JWT verification from httpOnly cookie
 │   │   │   ├── errorHandler.ts       # Global error handler (zero PII logging)

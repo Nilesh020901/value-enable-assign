@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { query } from '../db/index.js';
 import { env } from '../config/env.js';
+import { UserModel } from '../models/User.js';
 import {
   decryptData,
   encryptData,
@@ -42,17 +42,13 @@ export async function registerUser(dto: RegisterDTO): Promise<AuthResult> {
   const mobileHash = hashMobile(dto.mobile, env.HMAC_SECRET);
 
   // Check if user with same email or mobile already exists
-  const existing = await query(
-    'SELECT id, email, mobile_hash FROM users WHERE email = $1 OR mobile_hash = $2',
-    [normalizedEmail, mobileHash]
-  );
+  const existing = await UserModel.findByEmailOrMobileHash(normalizedEmail, mobileHash);
 
-  if (existing.rowCount > 0) {
-    const matched = existing.rows[0];
-    if (matched.email === normalizedEmail) {
+  if (existing) {
+    if (existing.email === normalizedEmail) {
       throw new Error('An account with this email address already exists.');
     }
-    if (matched.mobile_hash === mobileHash) {
+    if (existing.mobile_hash === mobileHash) {
       throw new Error('An account with this mobile number already exists.');
     }
   }
@@ -70,30 +66,18 @@ export async function registerUser(dto: RegisterDTO): Promise<AuthResult> {
   const dobMasked = maskDob(dto.dob);
   const mobileMasked = maskMobile(dto.mobile);
 
-  // Insert new user into database
-  const result = await query(
-    `INSERT INTO users (
-      email, password_hash,
-      full_name_encrypted, full_name_masked,
-      dob_encrypted, dob_masked,
-      mobile_encrypted, mobile_masked,
-      mobile_hash
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING id, email, full_name_masked, dob_masked, mobile_masked, created_at`,
-    [
-      normalizedEmail,
-      passwordHash,
-      nameEncrypted,
-      nameMasked,
-      dobEncrypted,
-      dobMasked,
-      mobileEncrypted,
-      mobileMasked,
-      mobileHash,
-    ]
-  );
-
-  const newUser = result.rows[0];
+  // Insert new user into database via UserModel
+  const newUser = await UserModel.create({
+    email: normalizedEmail,
+    passwordHash,
+    fullNameEncrypted: nameEncrypted,
+    fullNameMasked: nameMasked,
+    dobEncrypted,
+    dobMasked,
+    mobileEncrypted,
+    mobileMasked,
+    mobileHash,
+  });
 
   const token = jwt.sign({ userId: newUser.id, email: newUser.email }, env.JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
@@ -107,7 +91,7 @@ export async function registerUser(dto: RegisterDTO): Promise<AuthResult> {
       mobile: newUser.mobile_masked,
       dob: newUser.dob_masked,
       rawDob: dto.dob.trim(),
-      createdAt: newUser.created_at,
+      createdAt: newUser.created_at.toISOString(),
     },
     token,
   };
@@ -116,17 +100,12 @@ export async function registerUser(dto: RegisterDTO): Promise<AuthResult> {
 export async function loginUser(emailInput: string, passwordInput: string): Promise<AuthResult> {
   const normalizedEmail = emailInput.trim().toLowerCase();
 
-  const result = await query(
-    `SELECT id, email, password_hash, full_name_masked, dob_encrypted, dob_masked, mobile_masked, created_at
-     FROM users WHERE email = $1`,
-    [normalizedEmail]
-  );
+  const user = await UserModel.findByEmail(normalizedEmail);
 
-  if (result.rowCount === 0) {
+  if (!user) {
     throw new Error('Invalid email or password.');
   }
 
-  const user = result.rows[0];
   const isMatch = await bcrypt.compare(passwordInput, user.password_hash);
   if (!isMatch) {
     throw new Error('Invalid email or password.');
@@ -153,22 +132,17 @@ export async function loginUser(emailInput: string, passwordInput: string): Prom
       mobile: user.mobile_masked,
       dob: user.dob_masked,
       rawDob,
-      createdAt: user.created_at,
+      createdAt: user.created_at instanceof Date ? user.created_at.toISOString() : String(user.created_at),
     },
     token,
   };
 }
 
 export async function getUserById(userId: string): Promise<UserResponse | null> {
-  const result = await query(
-    `SELECT id, email, full_name_masked, dob_encrypted, dob_masked, mobile_masked, created_at
-     FROM users WHERE id = $1`,
-    [userId]
-  );
+  const user = await UserModel.findById(userId);
 
-  if (result.rowCount === 0) return null;
+  if (!user) return null;
 
-  const user = result.rows[0];
   let rawDob: string | undefined;
   if (user.dob_encrypted) {
     try {
@@ -185,6 +159,6 @@ export async function getUserById(userId: string): Promise<UserResponse | null> 
     mobile: user.mobile_masked,
     dob: user.dob_masked,
     rawDob,
-    createdAt: user.created_at,
+    createdAt: user.created_at instanceof Date ? user.created_at.toISOString() : String(user.created_at),
   };
 }
