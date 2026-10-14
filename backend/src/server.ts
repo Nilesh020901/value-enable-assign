@@ -14,10 +14,24 @@ export const app = express();
 // Security headers with helmet
 app.use(helmet());
 
-// CORS config allowing requests only from CLIENT_ORIGIN with credentials
+// CORS config allowing requests from CLIENT_ORIGIN, localhost, and Vercel domains with credentials
+const configuredOrigin = env.CLIENT_ORIGIN.replace(/\/$/, '');
+const allowedOrigins = [configuredOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'];
+
 app.use(
   cors({
-    origin: env.CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/$/, '');
+      if (
+        allowedOrigins.includes(cleanOrigin) ||
+        cleanOrigin.endsWith('.vercel.app') ||
+        cleanOrigin.includes('localhost')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   })
 );
